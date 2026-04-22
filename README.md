@@ -72,3 +72,65 @@ Finance-Support/
 | *"I earn 2000€/month and spend around 1500€"* | Snapshot + risk analysis + 6-month forecast |
 | *"My company revenue is 50k/month but profits are low"* | Cost analysis + margin insights + improvement plan |
 | *"Will I run out of money in 6 months?"* | 3-scenario forecast + liquidity warnings |
+
+## Usage Examples
+
+### Personal Finance Agent
+
+#### Example 1: Basic Income and Expense Analysis
+
+**Input:**
+```
+I earn 3000€/month and my expenses are 2500€/month.
+```
+**Expected Output:**
+- Financial Snapshot: Income vs Expenses
+- Key Risks: High expense ratio
+- Improvement Actions: Suggestions to reduce expenses
+
+#### Example 2: Savings Rate Calculation
+
+**Input:**
+```
+My monthly income is 4000€ and I save 500€.
+```
+**Expected Output:**
+- Financial Snapshot: Savings rate calculation
+- Improvement Actions: Increase savings rate
+
+### Business Finance Agent
+
+#### Example 1: Revenue and Cost Analysis
+
+**Input:**
+```
+Our revenue is 100k/month, but costs are 80k.
+```
+**Expected Output:**
+- Financial Snapshot: Revenue vs Costs
+- Key Risks: Low profit margin
+- Improvement Actions: Cost reduction strategies
+
+### Forecasting Agent
+
+#### Example 1: Cash Flow Projection
+
+**Input:**
+```
+Project cash flow for the next 6 months.
+```
+**Expected Output:**
+- Cash Flow Insight: Best, expected, and worst-case scenarios
+
+### Risk Agent
+
+#### Example 1: Risk Assessment
+
+**Input:**
+```
+Assess risks for my current financial plan.
+```
+**Expected Output:**
+- Key Risks: Identified risks with mitigation strategies
+
+These examples are designed to guide users through typical interactions with the Finance Co-Pilot, ensuring they understand how to leverage each agent effectively.
