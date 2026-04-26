@@ -73,7 +73,7 @@ Finance-Support/
 | *"My company revenue is 50k/month but profits are low"* | Cost analysis + margin insights + improvement plan |
 | *"Will I run out of money in 6 months?"* | 3-scenario forecast + liquidity warnings |
 
-## Usage Examples
+## Comprehensive Usage Examples
 
 ### Personal Finance Agent
 
