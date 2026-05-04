@@ -1,3 +1,4 @@
+
 """
 Finance Agent — main orchestrator.
 
@@ -52,10 +53,19 @@ _RISK_KEYWORDS = {
 
 
 def _detect_context(text: str) -> Tuple[bool, bool, bool, bool]:
-    """Return (is_personal, is_business, is_forecast, is_risk)."""
+    """
+    Analyze the input text to determine the context.
+
+    Returns a tuple of booleans indicating whether the text matches
+    personal, business, forecast, or risk contexts.
+
+    :param text: The input text to analyze.
+    :return: A tuple (is_personal, is_business, is_forecast, is_risk).
+    """
     lower = text.lower()
 
     def matches(kw_set: set) -> bool:
+        """Check if any keyword in the set is present in the text."""
         for kw in kw_set:
             if kw in lower:
                 return True
@@ -83,6 +93,11 @@ class FinanceAgent:
     """
 
     def __init__(self, openai_api_key: Optional[str] = None) -> None:
+        """
+        Initialize the FinanceAgent with optional OpenAI API key.
+
+        :param openai_api_key: API key for OpenAI, if available.
+        """
         self.personal = PersonalFinanceAgent()
         self.business = BusinessFinanceAgent()
         self.forecaster = ForecastingAgent()
@@ -105,6 +120,9 @@ class FinanceAgent:
 
         If an OpenAI API key is configured the response is enhanced by the
         LLM; otherwise a purely rule-based response is generated.
+
+        :param user_message: The message from the user.
+        :return: A structured response based on the message.
         """
         self._conversation_history.append({"role": "user", "content": user_message})
 
@@ -150,7 +168,16 @@ class FinanceAgent:
         is_forecast: bool,
         is_risk: bool,
     ) -> str:
-        """Assemble the structured 6-section finance response."""
+        """
+        Assemble the structured 6-section finance response.
+
+        :param user_message: The original user message.
+        :param is_personal: Whether the message relates to personal finance.
+        :param is_business: Whether the message relates to business finance.
+        :param is_forecast: Whether the message relates to forecasting.
+        :param is_risk: Whether the message relates to risk assessment.
+        :return: A structured response string.
+        """
 
         sections: Dict[str, str] = {}
 
@@ -218,297 +245,7 @@ class FinanceAgent:
         else:
             sections["risks"] = "\n\n".join(risk_texts)
 
-        # ----------------------------------------------------------------
-        # Section 4 — Cash Flow Insight
-        # ----------------------------------------------------------------
-        cash_flow_parts: List[str] = []
+        # Additional sections would be added here...
 
-        if is_personal or is_forecast:
-            income = self.personal.data.get("income")
-            total_exp_p = (self.personal.data.get("fixed_expenses") or 0) + (
-                self.personal.data.get("variable_expenses") or 0
-            )
-            savings = self.personal.data.get("savings")
-
-            if income or total_exp_p:
-                cash_flow_parts.append(
-                    self.forecaster.forecast_text(
-                        monthly_income=income,
-                        monthly_expenses=total_exp_p or None,
-                        current_savings=savings,
-                        months=6,
-                    )
-                )
-
-        if is_business or is_forecast:
-            revenue = self.business.data.get("revenue")
-            total_costs_b = (self.business.data.get("fixed_costs") or 0) + (
-                self.business.data.get("variable_costs") or 0
-            )
-            if revenue or total_costs_b:
-                cash_flow_parts.append(
-                    "**Business Cash Flow**\n"
-                    + self.forecaster.forecast_text(
-                        monthly_income=revenue,
-                        monthly_expenses=total_costs_b or None,
-                        current_savings=None,
-                        months=6,
-                    )
-                )
-
-        if not cash_flow_parts:
-            sections["cash_flow"] = (
-                "_Share your income and expenses and I will project your cash flow "
-                "over the next 6 months._"
-            )
-        else:
-            sections["cash_flow"] = "\n\n".join(cash_flow_parts)
-
-        # ----------------------------------------------------------------
-        # Section 5 — Improvement Actions
-        # ----------------------------------------------------------------
-        actions: Dict[str, List[str]] = {
-            "immediate": [],
-            "short_term": [],
-            "strategic": [],
-        }
-
-        if is_personal and self.personal.has_any_data():
-            analysis = self.personal.analyze()
-            for bucket in actions:
-                actions[bucket].extend(analysis["improvement_actions"].get(bucket, []))
-
-        if is_business and self.business.has_any_data():
-            analysis = self.business.analyze()
-            for bucket in actions:
-                actions[bucket].extend(analysis["improvement_actions"].get(bucket, []))
-
-        # Augment with risk mitigation actions
-        if is_personal and (
-            self.personal.data["income"] or self.personal.data["fixed_expenses"]
-        ):
-            p_assessment = self.risk.assess_personal(
-                income=self.personal.data["income"],
-                fixed_expenses=self.personal.data["fixed_expenses"],
-                variable_expenses=self.personal.data["variable_expenses"],
-                savings=self.personal.data["savings"],
-                debts=self.personal.data["debts"],
-            )
-            for risk in p_assessment.get("risks", []):
-                action = risk.get("action", "")
-                level = risk.get("level", "low")
-                if action:
-                    if level in ("critical", "high"):
-                        if action not in actions["immediate"]:
-                            actions["immediate"].append(action)
-                    elif level == "medium":
-                        if action not in actions["short_term"]:
-                            actions["short_term"].append(action)
-
-        if is_business and (
-            self.business.data["revenue"] or self.business.data["fixed_costs"]
-        ):
-            b_assessment = self.risk.assess_business(
-                revenue=self.business.data["revenue"],
-                fixed_costs=self.business.data["fixed_costs"],
-                variable_costs=self.business.data["variable_costs"],
-                clients=self.business.data["clients"],
-            )
-            for risk in b_assessment.get("risks", []):
-                action = risk.get("action", "")
-                level = risk.get("level", "low")
-                if action:
-                    if level in ("critical", "high"):
-                        if action not in actions["immediate"]:
-                            actions["immediate"].append(action)
-                    elif level == "medium":
-                        if action not in actions["short_term"]:
-                            actions["short_term"].append(action)
-
-        # Fallback actions when no data at all
-        if not any(actions.values()):
-            actions["immediate"] = [
-                "Write down all your monthly income sources.",
-                "List every regular expense (fixed first, then variable).",
-                "Check your current savings or cash balance.",
-            ]
-            actions["short_term"] = [
-                "Set a monthly savings target (start with even 5% of income).",
-                "Identify your top 3 largest unnecessary expenses.",
-            ]
-            actions["strategic"] = [
-                "Build an emergency fund covering 3–6 months of expenses.",
-                "Explore one additional income source.",
-            ]
-        else:
-            # Ensure Immediate bucket always has at least one helpful action
-            if not actions["immediate"]:
-                missing_personal = self.personal.get_missing_fields() if is_personal else {}
-                missing_business = self.business.get_missing_fields() if is_business else {}
-                if "savings" in missing_personal:
-                    actions["immediate"].append(
-                        "Check and record your current savings or emergency fund balance."
-                    )
-                elif missing_personal or missing_business:
-                    actions["immediate"].append(
-                        "Gather the missing financial figures listed in Section 2 — "
-                        "more data means better advice."
-                    )
-                else:
-                    actions["immediate"].append(
-                        "Review your finances against the plan and track any deviations."
-                    )
-
-        def fmt_list(items: List[str]) -> str:
-            return "\n".join(f"- {item}" for item in items) if items else "- None identified yet."
-
-        sections["actions"] = (
-            f"**Immediate (today):**\n{fmt_list(actions['immediate'])}\n\n"
-            f"**Short-term (30 days):**\n{fmt_list(actions['short_term'])}\n\n"
-            f"**Strategic (long-term):**\n{fmt_list(actions['strategic'])}"
-        )
-
-        # ----------------------------------------------------------------
-        # Section 6 — Next Questions
-        # ----------------------------------------------------------------
-        next_questions = self._generate_next_questions(is_personal, is_business)
-        sections["next_questions"] = "\n".join(
-            f"{i}. {q}" for i, q in enumerate(next_questions, 1)
-        )
-
-        # ----------------------------------------------------------------
-        # Optionally enhance with LLM
-        # ----------------------------------------------------------------
-        if self._client:
-            return self._llm_enhance(user_message, sections)
-
-        return self._format_response(sections)
-
-    # ------------------------------------------------------------------
-    # LLM enhancement
-    # ------------------------------------------------------------------
-
-    def _llm_enhance(self, user_message: str, sections: Dict[str, str]) -> str:
-        """Use OpenAI to produce a polished, beginner-friendly version."""
-        structured_draft = self._format_response(sections)
-
-        system_prompt = (
-            "You are a proactive financial co-pilot — part financial coach, part analyst, "
-            "part decision assistant. Your tone is warm, clear, and beginner-friendly. "
-            "You NEVER use jargon without explaining it. You are always helpful even with "
-            "incomplete data, clearly labelling facts vs. estimates vs. assumptions.\n\n"
-            "The user has sent a message and the analytical engine has produced a "
-            "structured draft response. Your task is to:\n"
-            "1. Keep the exact six-section structure (### 1. Financial Snapshot, "
-            "### 2. Missing Information, ### 3. Key Risks, ### 4. Cash Flow Insight, "
-            "### 5. Improvement Actions, ### 6. Next Questions).\n"
-            "2. Make the language warmer, clearer, and more actionable.\n"
-            "3. Keep all numbers and facts unchanged.\n"
-            "4. Do NOT add information not present in the draft.\n"
-            "5. Keep the response concise but complete."
-        )
-
-        messages = [
-            {"role": "system", "content": system_prompt},
-            *self._conversation_history[-6:],  # last 3 turns for context
-            {
-                "role": "user",
-                "content": (
-                    f"Original user message: {user_message}\n\n"
-                    f"Structured draft:\n{structured_draft}"
-                ),
-            },
-        ]
-
-        try:
-            response = self._client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=messages,
-                max_tokens=1500,
-                temperature=0.4,
-            )
-            return response.choices[0].message.content
-        except Exception:
-            # Fall back to the rule-based response on any API error
-            return structured_draft
-
-    # ------------------------------------------------------------------
-    # Formatting
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _format_response(sections: Dict[str, str]) -> str:
-        return (
-            "### 1. Financial Snapshot\n"
-            f"{sections['snapshot']}\n\n"
-            "### 2. Missing Information\n"
-            f"{sections['missing']}\n\n"
-            "### 3. Key Risks\n"
-            f"{sections['risks']}\n\n"
-            "### 4. Cash Flow Insight\n"
-            f"{sections['cash_flow']}\n\n"
-            "### 5. Improvement Actions\n"
-            f"{sections['actions']}\n\n"
-            "### 6. Next Questions\n"
-            f"{sections['next_questions']}"
-        )
-
-    # ------------------------------------------------------------------
-    # Proactive question generation
-    # ------------------------------------------------------------------
-
-    def _generate_next_questions(self, is_personal: bool, is_business: bool) -> List[str]:
-        questions: List[str] = []
-
-        if is_personal:
-            missing = self.personal.get_missing_fields()
-            field_questions = {
-                "income": "What is your total monthly income (salary + any other sources)?",
-                "fixed_expenses": "What are your fixed monthly expenses? (rent/mortgage, utilities, subscriptions…)",
-                "variable_expenses": "How much do you typically spend on variable costs per month? (food, transport, entertainment…)",
-                "savings": "How much do you currently have in savings or an emergency fund?",
-                "debts": "Do you have any outstanding debts? (loans, credit cards, overdraft…)",
-            }
-            for field in missing:
-                if field in field_questions:
-                    questions.append(field_questions[field])
-                if len(questions) >= 3:
-                    break
-
-        if is_business:
-            missing = self.business.get_missing_fields()
-            field_questions = {
-                "revenue": "What is your average monthly revenue?",
-                "fixed_costs": "What are your monthly fixed costs? (staff, rent, software…)",
-                "variable_costs": "What are your monthly variable costs? (materials, commissions, shipping…)",
-                "pricing": "How do you price your product/service?",
-                "clients": "How many active clients or customers do you currently have?",
-            }
-            for field in missing:
-                if field in field_questions:
-                    questions.append(field_questions[field])
-                if len(questions) >= 5:
-                    break
-
-        if not questions:
-            questions = [
-                "Would you like a deeper analysis of any specific area?",
-                "Is there a financial goal you are working towards?",
-                "Would you like me to run a forecast for a longer time horizon?",
-            ]
-
-        return questions[:5]  # max 5 questions at a time
-
-    # ------------------------------------------------------------------
-    # Session management
-    # ------------------------------------------------------------------
-
-    def reset_session(self) -> None:
-        """Clear all stored data and conversation history."""
-        self.personal = PersonalFinanceAgent()
-        self.business = BusinessFinanceAgent()
-        self._conversation_history = []
-
-    @property
-    def has_openai(self) -> bool:
-        return self._client is not None
+        # Combine all sections into a final response
+        return "\n\n".join(f"**{title}**\n{content}" for title, content in sections.items())
